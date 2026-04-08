@@ -18,8 +18,8 @@ import {
   Identity,
   EthBalance,
 } from '@coinbase/onchainkit/identity';
-import { useAccount, useSendTransaction } from 'wagmi';
-import { stringToHex } from 'viem';
+import { useAccount, useWriteContract, useReadContract } from 'wagmi';
+import { base } from 'wagmi/chains';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   MessageSquare, 
@@ -30,26 +30,38 @@ import {
   ShieldCheck,
   Zap
 } from 'lucide-react';
+import { SHOUTOUT_CONTRACT_ADDRESS, SHOUTOUT_ABI } from './constants';
 
 export default function App() {
   const { address, isConnected } = useAccount();
-  const { sendTransaction, isPending } = useSendTransaction();
+  const { writeContract, isPending } = useWriteContract();
   const [message, setMessage] = useState('');
   const [shoutouts, setShoutouts] = useState<{address: string, message: string, timestamp: number}[]>([]);
-  const [lastCheckIn, setLastCheckIn] = useState<number>(() => {
-    const saved = localStorage.getItem(`lastCheckIn_${address}`);
-    return saved ? parseInt(saved) : 0;
+
+  // Read last check-in from contract
+  const { data: contractLastCheckIn } = useReadContract({
+    address: SHOUTOUT_CONTRACT_ADDRESS,
+    abi: SHOUTOUT_ABI,
+    functionName: 'lastCheckIn',
+    args: [address as `0x${string}`],
+    query: {
+      enabled: !!address,
+    }
   });
 
-  const canCheckIn = !lastCheckIn || Date.now() - lastCheckIn > 24 * 60 * 60 * 1000;
+  const lastCheckInTime = contractLastCheckIn ? Number(contractLastCheckIn) * 1000 : 0;
+  const canCheckIn = !lastCheckInTime || Date.now() - lastCheckInTime > 24 * 60 * 60 * 1000;
 
   const handleSendShoutout = useCallback(() => {
     if (!message || !address) return;
 
-    sendTransaction({
-      to: address as `0x${string}`,
-      value: BigInt(0),
-      data: stringToHex(`SHOUTOUT:${message}`),
+    writeContract({
+      address: SHOUTOUT_CONTRACT_ADDRESS,
+      abi: SHOUTOUT_ABI,
+      functionName: 'postShoutout',
+      args: [message],
+      chain: base,
+      account: address,
     }, {
       onSuccess: () => {
         setShoutouts(prev => [{
@@ -60,23 +72,23 @@ export default function App() {
         setMessage('');
       }
     });
-  }, [message, address, sendTransaction]);
+  }, [message, address, writeContract]);
 
   const handleCheckIn = useCallback(() => {
     if (!address) return;
 
-    sendTransaction({
-      to: address as `0x${string}`,
-      value: BigInt(0),
-      data: stringToHex('DAILY_CHECK_IN'),
+    writeContract({
+      address: SHOUTOUT_CONTRACT_ADDRESS,
+      abi: SHOUTOUT_ABI,
+      functionName: 'checkIn',
+      chain: base,
+      account: address,
     }, {
       onSuccess: () => {
-        const now = Date.now();
-        setLastCheckIn(now);
-        localStorage.setItem(`lastCheckIn_${address}`, now.toString());
+        // The UI will update on next block/refresh via useReadContract
       }
     });
-  }, [address, sendTransaction]);
+  }, [address, writeContract]);
 
   return (
     <div className="min-h-screen flex flex-col font-sans">
@@ -154,9 +166,9 @@ export default function App() {
             </div>
 
             <div className="space-y-4">
-              {lastCheckIn > 0 && (
+              {lastCheckInTime > 0 && (
                 <div className="text-xs text-purple-400 font-mono bg-purple-400/10 p-3 rounded-xl border border-purple-400/20">
-                  Last check-in: {new Date(lastCheckIn).toLocaleString()}
+                  Last check-in: {new Date(lastCheckInTime).toLocaleString()}
                 </div>
               )}
               
