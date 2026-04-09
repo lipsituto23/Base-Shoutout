@@ -7,7 +7,7 @@ export const config = createConfig({
   connectors: [
     coinbaseWallet({
       appName: 'Base Shoutout',
-      preference: 'smartWalletOnly',
+      preference: 'all',
     }),
   ],
   transports: {
