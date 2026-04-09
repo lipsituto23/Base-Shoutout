@@ -1,0 +1,17 @@
+{
+  "accountAssociation": {
+    "header": "PASTE_HEADER_HERE",
+    "payload": "PASTE_PAYLOAD_HERE",
+    "signature": "PASTE_SIGNATURE_HERE"
+  },
+  "frame": {
+    "version": "1",
+    "name": "Base Shoutout",
+    "iconUrl": "https://base-shoutout-iota.vercel.app/favicon.ico",
+    "homeUrl": "https://base-shoutout-iota.vercel.app/",
+    "imageUrl": "https://picsum.photos/seed/base/1200/630",
+    "buttonTitle": "Launch App",
+    "splashImageUrl": "https://picsum.photos/seed/base/600/600",
+    "splashBackgroundColor": "#030303"
+  }
+}
