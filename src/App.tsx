@@ -32,7 +32,9 @@ import {
   Zap,
   Loader2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Copy,
+  Check
 } from 'lucide-react';
 import { SHOUTOUT_CONTRACT_ADDRESS, SHOUTOUT_ABI } from './constants';
 import DesignKit from './components/DesignKit';
@@ -51,10 +53,17 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [shoutouts, setShoutouts] = useState<{address: string, message: string, timestamp: number}[]>([]);
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash,
   });
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -207,6 +216,24 @@ export default function App() {
                 <h3 className="text-xl font-bold">Daily Check-in</h3>
                 <p className="text-gray-400 text-sm">Verify your presence on Base every 24 hours.</p>
               </div>
+              
+              {/* Contract Destination Info */}
+              <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-2">
+                <div className="flex justify-between items-center text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                  <span>Target Contract</span>
+                  <a 
+                    href={`https://basescan.org/address/${SHOUTOUT_CONTRACT_ADDRESS}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-blue-400 transition-colors flex items-center gap-1"
+                  >
+                    Basescan <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
+                </div>
+                <div className="font-mono text-[11px] text-gray-300 truncate">
+                  {SHOUTOUT_CONTRACT_ADDRESS}
+                </div>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -247,14 +274,23 @@ export default function App() {
                         </>
                       )}
                       {hash && (
-                        <a 
-                          href={`https://basescan.org/tx/${hash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-auto p-1 hover:bg-white/10 rounded-lg transition-colors"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
+                        <div className="ml-auto flex items-center gap-1">
+                          <button
+                            onClick={() => copyToClipboard(hash)}
+                            className="p-1 hover:bg-white/10 rounded-lg transition-colors text-current"
+                            title="Copy transaction hash"
+                          >
+                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                          <a 
+                            href={`https://basescan.org/tx/${hash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </div>
                       )}
                     </div>
                   </motion.div>
