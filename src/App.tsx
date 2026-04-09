@@ -19,9 +19,10 @@ import {
   Identity,
   EthBalance,
 } from '@coinbase/onchainkit/identity';
-import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useSendTransaction, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { motion, AnimatePresence } from 'motion/react';
+import { encodeFunctionData } from 'viem';
 import { 
   MessageSquare, 
   Send, 
@@ -38,10 +39,14 @@ import {
 } from 'lucide-react';
 import { SHOUTOUT_CONTRACT_ADDRESS, SHOUTOUT_ABI } from './constants';
 
+// Base Builder Attribution Code: bc_fxspvo1x
+// Hex encoded: 62635f66787370766f3178
+const BUILDER_ATTRIBUTION_HEX = '62635f66787370766f3178';
+
 export default function App() {
   const { address, isConnected } = useAccount();
   
-  const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
+  const { sendTransaction, data: hash, isPending, error: writeError } = useSendTransaction();
   const [message, setMessage] = useState('');
   const [shoutouts, setShoutouts] = useState<{address: string, message: string, timestamp: number}[]>([]);
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -88,7 +93,7 @@ export default function App() {
 
   useEffect(() => {
     if (hash) {
-      console.log('Transaction submitted:', hash);
+      console.log('Transaction submitted with attribution:', hash);
     }
   }, [hash]);
 
@@ -104,36 +109,47 @@ export default function App() {
   const handleSendShoutout = useCallback(() => {
     if (!message || !address) return;
 
-    writeContract({
-      address: SHOUTOUT_CONTRACT_ADDRESS,
+    const data = encodeFunctionData({
       abi: SHOUTOUT_ABI,
       functionName: 'postShoutout',
       args: [message],
-      chain: base,
-      account: address,
-    }, {
-      onSuccess: () => {
-        setShoutouts(prev => [{
-          address,
-          message,
-          timestamp: Date.now()
-        }, ...prev]);
-        setMessage('');
-      }
     });
-  }, [message, address, writeContract]);
+
+    // Append builder attribution code
+    const attributedData = `${data}${BUILDER_ATTRIBUTION_HEX}` as `0x${string}`;
+
+    sendTransaction({
+      to: SHOUTOUT_CONTRACT_ADDRESS,
+      data: attributedData,
+      chain: base,
+    });
+
+    // Optimistic update for UI (will be replaced by real data on refresh)
+    setShoutouts(prev => [{
+      address,
+      message,
+      timestamp: Date.now()
+    }, ...prev]);
+    setMessage('');
+  }, [message, address, sendTransaction]);
 
   const handleCheckIn = useCallback(() => {
     if (!address) return;
 
-    writeContract({
-      address: SHOUTOUT_CONTRACT_ADDRESS,
+    const data = encodeFunctionData({
       abi: SHOUTOUT_ABI,
       functionName: 'checkIn',
-      chain: base,
-      account: address,
     });
-  }, [address, writeContract]);
+
+    // Append builder attribution code
+    const attributedData = `${data}${BUILDER_ATTRIBUTION_HEX}` as `0x${string}`;
+
+    sendTransaction({
+      to: SHOUTOUT_CONTRACT_ADDRESS,
+      data: attributedData,
+      chain: base,
+    });
+  }, [address, sendTransaction]);
 
   return (
     <div className="min-h-screen flex flex-col font-sans">
