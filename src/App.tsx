@@ -37,18 +37,10 @@ import {
   Check
 } from 'lucide-react';
 import { SHOUTOUT_CONTRACT_ADDRESS, SHOUTOUT_ABI } from './constants';
-import DesignKit from './components/DesignKit';
 
 export default function App() {
   const { address, isConnected } = useAccount();
   
-  // Simple routing for design assets
-  const isDesignMode = typeof window !== 'undefined' && window.location.search.includes('design=true');
-
-  if (isDesignMode) {
-    return <DesignKit />;
-  }
-
   const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
   const [message, setMessage] = useState('');
   const [shoutouts, setShoutouts] = useState<{address: string, message: string, timestamp: number}[]>([]);
