@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import sdk from '@farcaster/frame-sdk';
 import { 
   ConnectWallet, 
   Wallet, 
@@ -18,7 +19,7 @@ import {
   Identity,
   EthBalance,
 } from '@coinbase/onchainkit/identity';
-import { useAccount, useWriteContract, useReadContract } from 'wagmi';
+import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -28,18 +29,45 @@ import {
   History, 
   ExternalLink,
   ShieldCheck,
-  Zap
+  Zap,
+  Loader2,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { SHOUTOUT_CONTRACT_ADDRESS, SHOUTOUT_ABI } from './constants';
+import DesignKit from './components/DesignKit';
 
 export default function App() {
   const { address, isConnected } = useAccount();
-  const { writeContract, isPending } = useWriteContract();
+  
+  // Simple routing for design assets
+  const isDesignMode = typeof window !== 'undefined' && window.location.search.includes('design=true');
+
+  if (isDesignMode) {
+    return <DesignKit />;
+  }
+
+  const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
   const [message, setMessage] = useState('');
   const [shoutouts, setShoutouts] = useState<{address: string, message: string, timestamp: number}[]>([]);
+  const [isSDKLoaded, setIsSDKLoaded] = useState(false);
+
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  useEffect(() => {
+    const load = async () => {
+      sdk.actions.ready();
+    };
+    if (sdk && !isSDKLoaded) {
+      setIsSDKLoaded(true);
+      load();
+    }
+  }, [isSDKLoaded]);
 
   // Read last check-in from contract
-  const { data: contractLastCheckIn } = useReadContract({
+  const { data: contractLastCheckIn, refetch: refetchLastCheckIn } = useReadContract({
     address: SHOUTOUT_CONTRACT_ADDRESS,
     abi: SHOUTOUT_ABI,
     functionName: 'lastCheckIn',
@@ -48,6 +76,26 @@ export default function App() {
       enabled: !!address,
     }
   });
+
+  // Refetch data when transaction is confirmed
+  useEffect(() => {
+    if (isConfirmed) {
+      console.log('Transaction confirmed:', hash);
+      refetchLastCheckIn();
+    }
+  }, [isConfirmed, refetchLastCheckIn, hash]);
+
+  useEffect(() => {
+    if (hash) {
+      console.log('Transaction submitted:', hash);
+    }
+  }, [hash]);
+
+  useEffect(() => {
+    if (writeError) {
+      console.error('Transaction error:', writeError);
+    }
+  }, [writeError]);
 
   const lastCheckInTime = contractLastCheckIn ? Number(contractLastCheckIn) * 1000 : 0;
   const canCheckIn = !lastCheckInTime || Date.now() - lastCheckInTime > 24 * 60 * 60 * 1000;
@@ -83,10 +131,6 @@ export default function App() {
       functionName: 'checkIn',
       chain: base,
       account: address,
-    }, {
-      onSuccess: () => {
-        // The UI will update on next block/refresh via useReadContract
-      }
     });
   }, [address, writeContract]);
 
@@ -171,6 +215,51 @@ export default function App() {
                   Last check-in: {new Date(lastCheckInTime).toLocaleString()}
                 </div>
               )}
+
+              {/* Transaction Status Feedback */}
+              <AnimatePresence>
+                {(isPending || isConfirming || isConfirmed || writeError) && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className={`p-4 rounded-2xl text-sm flex items-center gap-3 ${
+                      writeError ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                      isConfirmed ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                      'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                    }`}>
+                      {writeError ? (
+                        <>
+                          <AlertCircle className="w-5 h-5 shrink-0" />
+                          <span className="truncate">{writeError.message || 'Transaction failed'}</span>
+                        </>
+                      ) : isConfirmed ? (
+                        <>
+                          <CheckCircle2 className="w-5 h-5 shrink-0" />
+                          <span>Transaction confirmed!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Loader2 className="w-5 h-5 shrink-0 animate-spin" />
+                          <span>{isPending ? 'Confirm in wallet...' : 'Confirming on-chain...'}</span>
+                        </>
+                      )}
+                      {hash && (
+                        <a 
+                          href={`https://basescan.org/tx/${hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-auto p-1 hover:bg-white/10 rounded-lg transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               
               <button 
                 onClick={handleCheckIn}
@@ -236,6 +325,13 @@ export default function App() {
               <History className="w-6 h-6 text-blue-500" />
               Recent Shoutouts
             </h3>
+            <button 
+              onClick={() => refetchLastCheckIn()}
+              className="p-2 hover:bg-white/5 rounded-xl transition-colors text-gray-400"
+              title="Refresh status"
+            >
+              <Zap className="w-5 h-5" />
+            </button>
           </div>
 
           <div className="grid gap-4">
